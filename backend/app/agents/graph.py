@@ -7,6 +7,7 @@ from langgraph.graph import END, StateGraph
 
 from app.agents.state import WorkflowStage, WorkflowState, create_initial_state, ApprovalStatus
 from app.core.logging import WorkflowLogger, get_logger
+# from app.core.langfuse_client import trace_span, set_node_context
 
 logger = get_logger("graph")
 
@@ -24,6 +25,11 @@ async def research_node_wrapper(state: WorkflowState) -> dict[str, Any]:
     wf_logger.stage_start("RESEARCH")
 
     try:
+        # set_node_context(agent="research", operation_type="research")
+        # with trace_span(name="node:research", input={"run_id": state.get("run_id")}):
+        #     result = await research_node(state)
+
+
         result = await research_node(state)
 
         artifact = result.get("research_artifact", {})

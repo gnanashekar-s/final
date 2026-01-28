@@ -22,6 +22,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+# from app.core.langfuse_client import start_run_trace, flush_langfuse
+
 
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -339,7 +341,11 @@ async def run_workflow(project: CLIProject, user: CLIUser, auto_approve: bool = 
 
     # ========== STAGE 1: Start Workflow (Research + Epic Generation) ==========
     print_stage("Starting workflow (Research → Epic Generation)")
-
+    # start_run_trace(
+    # run_id=str(run_id),
+    # name="product-to-code-cli",
+    # user_id=getattr(user, "email", None) or str(getattr(user, "id", "unknown")),
+    # metadata={"project_id": project.id, "project_name": project.name})
     try:
         state = await runner.start_workflow(
             run_id=run_id,
@@ -600,6 +606,8 @@ Examples:
         import traceback
         traceback.print_exc()
         sys.exit(1)
+    # finally:
+    #     flush_langfuse()
 
 
 if __name__ == "__main__":
