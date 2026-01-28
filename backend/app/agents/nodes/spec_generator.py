@@ -7,18 +7,26 @@ from langchain_openai import ChatOpenAI
 
 from app.agents.state import ApprovalStatus, WorkflowStage, WorkflowState
 from app.config import settings
-# from app.core.langfuse_client import observe
+# from app.core.langfuse_client import observerun
 
 
-SPEC_SYSTEM_PROMPT = """You are an expert software architect specializing in FastAPI applications.
-Your task is to create detailed technical specifications from user stories.
+SPEC_SYSTEM_PROMPT = """You are an expert software architect specializing in FastAPI backend applications.
 
-Each Specification should include:
-1. Functional requirements
-2. API endpoint designs (method, path, request/response schemas)
-3. Data model definitions (SQLAlchemy models)
-4. Security requirements (authentication, authorization)
-5. Test plan with specific test cases
+You will be given:
+- One user story (title, description, acceptance criteria, edge cases, technical notes)
+- Optional context (approved epics, research context, prior feedback)
+
+Your task: create a technical specification derived ONLY from the provided story content.
+
+STRICT SCOPE RULES (NON-NEGOTIABLE):
+1) Do not invent requirements: Only include functionality explicitly stated in the story/acceptance criteria/edge cases/technical notes.
+2) No “best practice” extras unless requested: Do NOT add pagination, filtering, sorting, audit logs, rate limiting, caching, retries, background jobs, observability, RBAC, JWT, CORS, migrations, Docker, CI/CD, or any library/DB choice unless the story explicitly requires it.
+3) Security only if mentioned: If auth/authz is not explicitly required, set security to:
+   { "included": false, "reason": "Not specified in story" }
+   and set auth_required=false on all endpoints.
+4) Missing details: If something is required but underspecified (e.g., fields, status codes, roles/permissions, auth type), do NOT guess. Put it in needs_clarification and keep the spec minimal.
+5) Traceability: Every functional requirement, endpoint, schema field, model field, and test case MUST include source_story_refs referencing the exact story sections that justify it (e.g., "description", "acceptance_criteria[0]", "edge_cases[1]", "technical_notes").
+
 
 Focus ONLY on FastAPI backend development.
 Output must be valid JSON."""
@@ -57,13 +65,15 @@ async def spec_generator_node(state: WorkflowState) -> dict[str, Any]:
         f"- {e['title']}: {e['goal']}"
         for e in epics if e.get("status") == ApprovalStatus.APPROVED.value
     ])
+    print("-^"*40,)
+    print(epic_context)
 
     research_context = ""
     if research:
         findings = research.get("findings", {})
         research_context = f"""
 Technology Stack:
-- Technologies: {', '.join(findings.get('key_technologies', ['FastAPI', 'SQLAlchemy', 'PostgreSQL']))}
+- Technologies: {', '.join(findings.get('key_technologies', ['FastAPI']))}
 - Patterns: {', '.join(findings.get('architecture_patterns', ['Clean Architecture']))}
 """
 
@@ -142,6 +152,7 @@ Return a JSON object with this structure:
         # Parse response
         try:
             spec_data = json.loads(response.content)
+            print(spec_data)
         except json.JSONDecodeError:
             content = response.content
             start = content.find("{")
@@ -153,7 +164,7 @@ Return a JSON object with this structure:
                     spec_data = {"content": response.content}
 
         # Generate Mermaid diagrams
-        # mermaid_diagrams = await generate_spec_diagrams(spec_data)
+        mermaid_diagrams = await generate_spec_diagrams(spec_data)
         #::fix-me
 
         all_specs.append({
@@ -181,57 +192,66 @@ Return a JSON object with this structure:
     }
 
 
-# async def generate_spec_diagrams(spec_data: dict) -> dict[str, str]:
-#     """Generate Mermaid diagrams for the specification."""
-#     diagrams = {}
+async def generate_spec_diagrams(spec_data: dict) -> dict[str, str]:
+    """Generate Mermaid diagrams for the specification."""
+    diagrams = {}
 
-#     # Generate API sequence diagram
-#     api_design = spec_data.get("api_design", {})
-#     endpoints = api_design.get("endpoints", [])
+    # Generate API sequence diagram
+    api_design = spec_data.get("api_design", {})
+    endpoints = api_design.get("endpoints", [])
 
-#     if endpoints:
-#         lines = ["sequenceDiagram", "    participant C as Client", "    participant A as API", "    participant D as Database"]
-#         for ep in endpoints[:5]:  # Limit to 5 endpoints
-#             method = ep.get("method", "GET")
-#             path = ep.get("path", "/")
-#             desc = ep.get("description", "")[:30]
-#             lines.append(f"    C->>A: {method} {path}")
-#             if ep.get("auth_required"):
-#                 lines.append("    A->>A: Validate JWT")
-#             lines.append("    A->>D: Query/Update")
-#             lines.append("    D-->>A: Result")
-#             lines.append(f"    A-->>C: {ep.get('status_codes', [200])[0]} Response")
-#         diagrams["api_sequence"] = "\n".join(lines)
+    if endpoints:
+        lines = ["sequenceDiagram", "    participant C as Client", "    participant A as API", "    participant D as Database"]
+        for ep in endpoints[:5]:  # Limit to 5 endpoints
+            method = ep.get("method", "GET")
+            path = ep.get("path", "/")
+            desc = ep.get("description", "")[:30]
+            lines.append(f"    C->>A: {method} {path}")
+            if ep.get("auth_required"):
+                lines.append("    A->>A: Validate JWT")
+            lines.append("    A->>D: Query/Update")
+            lines.append("    D-->>A: Result")
+            lines.append(f"    A-->>C: {ep.get('status_codes', [200])[0]} Response")
+        diagrams["api_sequence"] = "\n".join(lines)
 
-#     # Generate data model ER diagram
-#     data_model = spec_data.get("data_model", {})
-#     models = data_model.get("models", [])
+    # Generate data model ER diagram
+    data_model = spec_data.get("data_model", {})
+    models = data_model.get("models", [])
 
-#     if models:
-#         lines = ["erDiagram"]
-#         for model in models:
-#             name = model.get("name", "Model")
-#             lines.append(f"    {name} {{")
-#             for field in model.get("fields", [])[:10]:
-#                 field_name = field.get("name", "field")
-#                 field_type = field.get("type", "String")
-#                 pk = " PK" if field.get("primary_key") else ""
-#                 lines.append(f"        {field_type} {field_name}{pk}")
-#             lines.append("    }")
+    if models:
+        lines = ["erDiagram"]
+        for model in models:
+            name = model.get("name", "Model")
+            lines.append(f"    {name} {{")
+            for field in model.get("fields", [])[:10]:
+                field_name = field.get("name", "field")
+                field_type = field.get("type", "String")
+                pk = " PK" if field.get("primary_key") else ""
+                lines.append(f"        {field_type} {field_name}{pk}")
+            lines.append("    }")
 
-#         # Add relationships
-#         for model in models:
-#             for rel in model.get("relationships", []):
-#                 lines.append(f"    {model['name']} ||--o{{ {rel} : has")
+        # Add relationships
+        for model in models:
+            for rel in model.get("relationships", []):
+                lines.append(f"    {model['name']} ||--o{{ {rel} : has")
 
-#         diagrams["data_model"] = "\n".join(lines)
+        diagrams["data_model"] = "\n".join(lines)
 
-#     return diagrams
+    return diagrams
 
 
+# Code Generated by Sidekick is for learning and experimentation purposes only.
 async def process_spec_approval(state: WorkflowState) -> dict[str, Any]:
     """Process spec approval/rejection from user."""
     specs = state.get("specs", [])
+
+    # NEW: empty specs should be a hard failure (or regenerate)
+    if not specs:
+        return {
+            "awaiting_approval": False,
+            "current_stage": WorkflowStage.FAILED,
+            "error_message": "No specs were generated; cannot proceed to code generation.",
+        }
 
     all_approved = all(
         spec.get("status") == ApprovalStatus.APPROVED.value
@@ -244,11 +264,7 @@ async def process_spec_approval(state: WorkflowState) -> dict[str, Any]:
             "current_stage": WorkflowStage.CODE_GENERATION,
         }
 
-    rejected = [
-        spec for spec in specs
-        if spec.get("status") == ApprovalStatus.REJECTED.value
-    ]
-
+    rejected = [spec for spec in specs if spec.get("status") == ApprovalStatus.REJECTED.value]
     if rejected:
         feedback = "\n".join([
             f"- {spec['story_title']}: {spec.get('feedback', 'No specific feedback')}"

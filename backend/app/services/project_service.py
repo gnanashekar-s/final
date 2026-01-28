@@ -1,12 +1,12 @@
 """Project service for managing projects and runs."""
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.code_artifact import CodeArtifact
-from app.models.epic import Epic
+from app.models.epic import Epic, EpicStatus
 from app.models.project import Project, ProjectStatus, TraceabilityMatrix
 from app.models.run import ResearchArtifact, Run, RunStatus, WorkflowStage
 from app.models.spec import Spec
@@ -139,6 +139,64 @@ class ProjectService:
         checkpoint_data: dict,
     ) -> Run:
         """Save checkpoint data for a run."""
+        run.checkpoint_data = checkpoint_data
+        await self.db.flush()
+        await self.db.refresh(run)
+        return run
+    
+    async def persist_epics_pending_review(
+        self,
+        run: Run,
+        epics_state: list[dict],
+    ) -> dict[int, int]:
+        """
+        Persists generated epics for a run as PENDING_REVIEW.
+        Returns mapping: checkpoint_index -> db_epic_id
+        """
+
+        # Idempotency: if you pause twice, don't duplicate
+        await self.db.execute(
+            delete(Epic).where(Epic.run_id == run.id, Epic.status == EpicStatus.PENDING_REVIEW)
+        )
+
+        created: list[tuple[int, Epic]] = []
+
+        # Insert first (deps are still indices for now)
+        for e in epics_state:
+            epic = Epic(
+                project_id=run.project_id,
+                run_id=run.id,
+                title=e["title"],
+                goal=e.get("goal"),
+                scope=e.get("scope"),
+                priority=e.get("priority"),
+                dependencies=e.get("dependencies") or [],  # still indices for the moment
+                status=EpicStatus.PENDING_REVIEW,
+            )
+            self.db.add(epic)
+            created.append((e["index"], epic))
+
+        await self.db.flush()  # assigns DB IDs
+
+        index_to_id = {idx: epic.id for idx, epic in created}
+
+        # Remap dependencies from indices -> DB epic IDs
+        for idx, epic in created:
+            dep_indices = epic.dependencies or []
+            epic.dependencies = [index_to_id[i] for i in dep_indices if i in index_to_id]
+
+        await self.db.flush()
+        return index_to_id
+
+    async def pause_run_with_checkpoint(
+        self,
+        run: Run,
+        checkpoint_data: dict,
+        stage: WorkflowStage,
+    ) -> Run:
+        """Pause run, save checkpoint, and keep stage column in sync."""
+        run.status = RunStatus.PAUSED
+        run.current_stage = stage
         run.checkpoint_data = checkpoint_data
         await self.db.flush()
         await self.db.refresh(run)

@@ -5,7 +5,7 @@ from typing import Any, Literal
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
-from app.agents.state import WorkflowStage, WorkflowState, create_initial_state
+from app.agents.state import WorkflowStage, WorkflowState, create_initial_state, ApprovalStatus
 from app.core.logging import WorkflowLogger, get_logger
 
 logger = get_logger("graph")
@@ -532,17 +532,23 @@ class WorkflowRunner:
         state = await self.get_state(run_id)
 
         # Get the items list
-        items_key = f"{item_type}s"
+        plural_map = {"epic": "epics", "story": "stories", "spec": "specs"}
+        items_key = plural_map[item_type]
+
         items = state.get(items_key, [])
 
         # Update item statuses
-        for item in items:
-            idx = item.get("index")
-            if idx is not None and idx in item_ids:
-                item["status"] = "approved" if approved else "rejected"
+
+        # Update item statuses (item_ids are list indices)
+        for i, item in enumerate(items):
+            if i in item_ids:
+                item["status"] = (
+                    ApprovalStatus.APPROVED.value if approved else ApprovalStatus.REJECTED.value
+                )
                 if not approved and feedback:
                     item["feedback"] = feedback
-                logger.info(f"  Updated {item_type} {idx}: {item['status']}")
+                logger.info(f"  Updated {item_type} {i}: {item['status']}")
+
 
         # Determine next stage based on approval
         if approved:

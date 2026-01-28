@@ -165,7 +165,6 @@ async def delete_project(
 @router.post("/{project_id}/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
 async def create_run(
     project_id: int,
-    background_tasks: BackgroundTasks,
     run_data: Optional[RunCreate] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -206,7 +205,6 @@ async def create_run(
         run = await workflow_service.start_workflow(
             project_id=project_id,
             user_id=current_user.id,
-            launch_background=False,
             constraints=constraints,
         )
 
@@ -215,16 +213,6 @@ async def create_run(
         # Commit the transaction to persist the run
         await db.commit()
         await db.refresh(run)
-
-        background_tasks.add_task(
-            workflow_service.execute_workflow_background,
-            run_id=run.id,
-            project_id=project_id,
-            user_id=current_user.id,
-            product_request=project.product_request,
-            constraints=constraints,
-        )
-
 
         return run
 

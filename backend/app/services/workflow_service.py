@@ -27,11 +27,13 @@ class WorkflowService:
         self.db = db
         self.project_service = ProjectService(db)
         self.runner = workflow_runner
+        
 
     async def start_workflow(
         self,
         project_id: int,
         user_id: int,
+        launch_background: bool =True,
         constraints: Optional[str] = None,
     ) -> Run:
         """Start a new workflow run for a project.
@@ -73,19 +75,35 @@ class WorkflowService:
         )
 
         # Start workflow in background
-        logger.info(f"Launching background task for run {run.id}")
-        asyncio.create_task(
-            self._execute_workflow(
-                run.id,
-                project_id,
-                user_id,
-                project.product_request,
-                constraints,
+        if launch_background:
+            logger.info(f"Launching background task for run {run.id}")
+            asyncio.create_task(
+                self._execute_workflow(
+                    run.id,
+                    project_id,
+                    user_id,
+                    project.product_request,
+                    constraints,
+                )
             )
-        )
 
         return run
-
+    async def execute_workflow_background(
+        self,
+        run_id: int,
+        project_id: int,
+        user_id: int,
+        product_request: str,
+        constraints,
+    ) -> None:
+        """Entry point for FastAPI BackgroundTasks."""
+        await self._execute_workflow(
+            run_id=run_id,
+            project_id=project_id,
+            user_id=user_id,
+            product_request=product_request,
+            constraints=constraints,
+        )
     async def _execute_workflow(
         self,
         run_id: int,
