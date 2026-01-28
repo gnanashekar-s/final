@@ -88,8 +88,9 @@ async def code_generator_node(state: WorkflowState) -> dict[str, Any]:
     if user_feedback:
         feedback_context = f"\n\nPrevious feedback to address:\n{user_feedback}"
 
-    prompt = f"""Generate complete FastAPI backend code based on these specifications:
+    prompt = f"""Generate a complete, runnable FastAPI backend based on the specifications below.
 
+Specifications
 API Endpoints:
 {json.dumps(all_endpoints, indent=2)}
 
@@ -103,31 +104,58 @@ Test Cases:
 {json.dumps(all_tests, indent=2)}
 {feedback_context}
 
-Generate a complete FastAPI project with this file structure:
+Primary goal (MANDATORY)
+- Generate a project that runs without errors and implements the requested CRUD behavior end-to-end.
+- Keep the design modular and easy to extend.
+
+Architecture rules (MANDATORY)
+- FastAPI with async endpoints.
+- Pydantic v2 for request/response schemas.
+- Clear separation of concerns:
+  - routers = HTTP layer only (validation, status codes, dependencies)
+  - services = business logic (no FastAPI imports)
+  - storage/repository = data access layer
+- Add type hints and docstrings for all public functions/classes.
+- Implement consistent error handling (404 not found, 409 conflict if applicable, 422 validation via Pydantic).
+
+Storage & dependencies (MANDATORY)
+- Default to an IN-MEMORY implementation with the fewest dependencies possible.
+- Implement BOTH in-memory structures:
+  1) list-based store (array)
+  2) dict-based store keyed by id
+- Use a small repository abstraction so swapping storage later is easy.
+- Only generate SQLAlchemy/database code IF the spec explicitly requires a real database. If not required, do NOT include SQLAlchemy or database setup files.
+
+File structure (ADAPTIVE)
+- Create only the files that are needed for this spec, but keep the code modular.
+- Use this baseline structure and add one router/service per resource:
+
 {{
-    "files": {{
-        "main.py": "FastAPI app entry point with routes",
-        "models.py": "SQLAlchemy models",
-        "schemas.py": "Pydantic schemas",
-        "database.py": "Database connection setup",
-        "config.py": "Configuration with pydantic-settings",
-        "dependencies.py": "FastAPI dependencies",
-        "routers/__init__.py": "Router package init",
-        "routers/[resource].py": "Resource-specific routers",
-        "services/__init__.py": "Services package init",
-        "services/[service].py": "Business logic services",
-        "tests/test_main.py": "API tests",
-        "requirements.txt": "Python dependencies"
-    }}
+  "files": {{
+    "main.py": "FastAPI app entry point; registers routers; app startup",
+    "schemas.py": "Pydantic v2 schemas (or split by resource if needed)",
+    "dependencies.py": "FastAPI dependencies (repo/service wiring)",
+    "storage.py": "In-memory repositories (list + dict) and base interfaces",
+    "routers/__init__.py": "Router package init",
+    "routers/[resource].py": "One router per resource; CRUD endpoints",
+    "services/__init__.py": "Services package init",
+    "services/[service].py": "One service per resource; CRUD logic",
+    "tests/test_main.py": "pytest + httpx tests for CRUD + error cases",
+    "requirements.txt": "Minimal dependencies needed to run and test"
+  }}
 }}
 
-Return a JSON object with "files" mapping filenames to their complete content.
-Ensure all code is:
-1. Syntactically valid Python
-2. Uses FastAPI patterns correctly
-3. Includes proper type hints
-4. Has docstrings for all functions
-5. Handles errors appropriately"""
+Output requirements (MANDATORY)
+- Return ONLY valid JSON.
+- The JSON MUST be exactly: {{"files": {{...}}}} with file paths as keys and full file contents as values.
+- Do not include markdown fences, explanations, comments outside code, or extra top-level keys.
+
+Quality checklist (MANDATORY)
+1) All imports resolve; no missing symbols.
+2) Endpoints match the endpoint spec (method/path/inputs/outputs).
+3) CRUD is complete for each resource unless the spec says otherwise.
+4) Tests are runnable and cover: create, list, get, update, delete, and not-found.
+"""
 
     response = await llm.ainvoke([
         SystemMessage(content=CODE_SYSTEM_PROMPT),
