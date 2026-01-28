@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from app.agents.state import WorkflowStage, WorkflowState
 from app.agents.tools.web_search import web_search
 from app.config import settings
-from app.core.langfuse_client import observe
+# from app.core.langfuse_client import observe
 
 
 RESEARCH_SYSTEM_PROMPT = """You are a technical research agent specialized in software engineering.
@@ -24,7 +24,7 @@ Always focus on FastAPI backend development patterns and best practices.
 Output your findings in a structured JSON format."""
 
 
-@observe(name="research_node")
+# @observe(name="research_node")
 async def research_node(state: WorkflowState) -> dict[str, Any]:
     """
     Research node that gathers information about the product request.

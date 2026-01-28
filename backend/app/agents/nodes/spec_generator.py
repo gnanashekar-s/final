@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 
 from app.agents.state import ApprovalStatus, WorkflowStage, WorkflowState
 from app.config import settings
-from app.core.langfuse_client import observe
+# from app.core.langfuse_client import observe
 
 
 SPEC_SYSTEM_PROMPT = """You are an expert software architect specializing in FastAPI applications.
@@ -24,7 +24,7 @@ Focus ONLY on FastAPI backend development.
 Output must be valid JSON."""
 
 
-@observe(name="spec_generator_node")
+# @observe(name="spec_generator_node")
 async def spec_generator_node(state: WorkflowState) -> dict[str, Any]:
     """
     Generate technical specifications from approved stories.
@@ -153,7 +153,8 @@ Return a JSON object with this structure:
                     spec_data = {"content": response.content}
 
         # Generate Mermaid diagrams
-        mermaid_diagrams = await generate_spec_diagrams(spec_data)
+        # mermaid_diagrams = await generate_spec_diagrams(spec_data)
+        #::fix-me
 
         all_specs.append({
             "id": None,
@@ -180,52 +181,52 @@ Return a JSON object with this structure:
     }
 
 
-async def generate_spec_diagrams(spec_data: dict) -> dict[str, str]:
-    """Generate Mermaid diagrams for the specification."""
-    diagrams = {}
+# async def generate_spec_diagrams(spec_data: dict) -> dict[str, str]:
+#     """Generate Mermaid diagrams for the specification."""
+#     diagrams = {}
 
-    # Generate API sequence diagram
-    api_design = spec_data.get("api_design", {})
-    endpoints = api_design.get("endpoints", [])
+#     # Generate API sequence diagram
+#     api_design = spec_data.get("api_design", {})
+#     endpoints = api_design.get("endpoints", [])
 
-    if endpoints:
-        lines = ["sequenceDiagram", "    participant C as Client", "    participant A as API", "    participant D as Database"]
-        for ep in endpoints[:5]:  # Limit to 5 endpoints
-            method = ep.get("method", "GET")
-            path = ep.get("path", "/")
-            desc = ep.get("description", "")[:30]
-            lines.append(f"    C->>A: {method} {path}")
-            if ep.get("auth_required"):
-                lines.append("    A->>A: Validate JWT")
-            lines.append("    A->>D: Query/Update")
-            lines.append("    D-->>A: Result")
-            lines.append(f"    A-->>C: {ep.get('status_codes', [200])[0]} Response")
-        diagrams["api_sequence"] = "\n".join(lines)
+#     if endpoints:
+#         lines = ["sequenceDiagram", "    participant C as Client", "    participant A as API", "    participant D as Database"]
+#         for ep in endpoints[:5]:  # Limit to 5 endpoints
+#             method = ep.get("method", "GET")
+#             path = ep.get("path", "/")
+#             desc = ep.get("description", "")[:30]
+#             lines.append(f"    C->>A: {method} {path}")
+#             if ep.get("auth_required"):
+#                 lines.append("    A->>A: Validate JWT")
+#             lines.append("    A->>D: Query/Update")
+#             lines.append("    D-->>A: Result")
+#             lines.append(f"    A-->>C: {ep.get('status_codes', [200])[0]} Response")
+#         diagrams["api_sequence"] = "\n".join(lines)
 
-    # Generate data model ER diagram
-    data_model = spec_data.get("data_model", {})
-    models = data_model.get("models", [])
+#     # Generate data model ER diagram
+#     data_model = spec_data.get("data_model", {})
+#     models = data_model.get("models", [])
 
-    if models:
-        lines = ["erDiagram"]
-        for model in models:
-            name = model.get("name", "Model")
-            lines.append(f"    {name} {{")
-            for field in model.get("fields", [])[:10]:
-                field_name = field.get("name", "field")
-                field_type = field.get("type", "String")
-                pk = " PK" if field.get("primary_key") else ""
-                lines.append(f"        {field_type} {field_name}{pk}")
-            lines.append("    }")
+#     if models:
+#         lines = ["erDiagram"]
+#         for model in models:
+#             name = model.get("name", "Model")
+#             lines.append(f"    {name} {{")
+#             for field in model.get("fields", [])[:10]:
+#                 field_name = field.get("name", "field")
+#                 field_type = field.get("type", "String")
+#                 pk = " PK" if field.get("primary_key") else ""
+#                 lines.append(f"        {field_type} {field_name}{pk}")
+#             lines.append("    }")
 
-        # Add relationships
-        for model in models:
-            for rel in model.get("relationships", []):
-                lines.append(f"    {model['name']} ||--o{{ {rel} : has")
+#         # Add relationships
+#         for model in models:
+#             for rel in model.get("relationships", []):
+#                 lines.append(f"    {model['name']} ||--o{{ {rel} : has")
 
-        diagrams["data_model"] = "\n".join(lines)
+#         diagrams["data_model"] = "\n".join(lines)
 
-    return diagrams
+#     return diagrams
 
 
 async def process_spec_approval(state: WorkflowState) -> dict[str, Any]:

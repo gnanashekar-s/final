@@ -6,10 +6,10 @@ from typing import Any
 
 from app.agents.state import WorkflowStage, WorkflowState
 from app.agents.tools.code_tools import lint_python_code, validate_python_syntax
-from app.core.langfuse_client import observe
+# from app.core.langfuse_client import observe
 
 
-@observe(name="validator_node")
+# @observe(name="validator_node")
 async def validator_node(state: WorkflowState) -> dict[str, Any]:
     """
     Validate generated code through syntax, lint, and test checks.

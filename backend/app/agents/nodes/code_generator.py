@@ -14,7 +14,7 @@ from app.agents.tools.code_tools import (
     validate_python_syntax,
 )
 from app.config import settings
-from app.core.langfuse_client import observe
+# from app.core.langfuse_client import observe
 
 
 CODE_SYSTEM_PROMPT = """You are an expert FastAPI developer.
@@ -38,7 +38,7 @@ DO NOT generate:
 Output must be valid JSON with file contents."""
 
 
-@observe(name="code_generator_node")
+# @observe(name="code_generator_node")
 async def code_generator_node(state: WorkflowState) -> dict[str, Any]:
     """
     Generate FastAPI code from approved specifications.
@@ -154,7 +154,7 @@ Ensure all code is:
             "error_message": "Failed to generate code files",
             "current_stage": WorkflowStage.FAILED,
         }
-
+    #TODO :: nested folder
     # Validate generated code
     validation_errors = []
     for filename, content in files.items():
@@ -211,7 +211,7 @@ Ensure all code is:
     }
 
 
-@observe(name="fix_code")
+# @observe(name="fix_code")
 async def fix_code_node(state: WorkflowState) -> dict[str, Any]:
     """
     Attempt to fix validation errors in generated code.
